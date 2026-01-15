@@ -34,7 +34,7 @@ const statusRepasseConfig: Record<FaturaStatusRepasse, { label: string; badgeCla
 };
 
 export const FaturasPage: React.FC = () => {
-    const { faturas, loading, deleteFatura, registrarPagamentoTaxa, registrarPagamentoRepasse, addManualEntregaToFatura, updateManualEntregaInFatura, deleteManualEntregaFromFatura, createManualFatura } = useFaturasData();
+    const { faturas, loading, deleteFatura, registrarPagamentoTaxa, registrarPagamentoRepasse, addManualEntregaToFatura, updateManualEntregaInFatura, deleteManualEntregaFromFatura, createManualFatura, closeFatura } = useFaturasData();
     const [searchTerm, setSearchTerm] = useState('');
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -219,6 +219,7 @@ export const FaturasPage: React.FC = () => {
                 onAddEntrega={addManualEntregaToFatura}
                 onUpdateEntrega={updateManualEntregaInFatura}
                 onDeleteEntrega={deleteManualEntregaFromFatura}
+                onCloseFatura={closeFatura}
             />
             <CreateFaturaDialog
                 open={isCreateOpen}

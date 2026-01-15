@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Fatura, EntregaIncluida, Solicitacao, TaxaExtra, ConciliacaoData, FormaPagamentoConciliacao, Cliente, FaturaStatusPagamento, FaturaStatusRepasse, HistoricoItem } from '@/types';
+import { Fatura, EntregaIncluida, Solicitacao, TaxaExtra, ConciliacaoData, FormaPagamentoConciliacao, Cliente, FaturaStatusPagamento, FaturaStatusRepasse, FaturaStatusGeral, HistoricoItem } from '@/types';
 import { faker } from '@faker-js/faker';
 import { addDays, format, setDate, isBefore, nextDay, addMonths, startOfDay, subDays, isSameMonth, isSameDay, isSameISOWeek } from 'date-fns';
 import { toast } from 'sonner';
@@ -137,6 +137,7 @@ interface FaturasContextType {
     registrarPagamentoTaxa: (faturaId: string, detalhes: string) => void;
     registrarPagamentoRepasse: (faturaId: string, detalhes: string) => void;
     createManualFatura: (data: any) => void; // Adding strict type later
+    closeFatura: (id: string) => void;
 }
 
 const FaturasContext = createContext<FaturasContextType | undefined>(undefined);
@@ -445,9 +446,8 @@ export const FaturasProvider: React.FC<{ children: ReactNode }> = ({ children })
                 if (updatedFatura.statusRepasse === 'Repassado' || updatedFatura.valorRepasse === 0) {
                     updatedFatura.statusGeral = 'Finalizada';
                     updatedFatura.historico.push({ id: faker.string.uuid(), acao: 'finalizada', data: new Date() });
-                } else {
-                    updatedFatura.statusGeral = 'Paga';
                 }
+                // Removed else block to prevent status 'Paga' while Repasse is pending
                 return updatedFatura;
             }
             return f;
@@ -471,6 +471,23 @@ export const FaturasProvider: React.FC<{ children: ReactNode }> = ({ children })
         }));
     };
 
+    const closeFatura = (id: string) => {
+        setFaturas(prev => prev.map(f => {
+            if (f.id === id) {
+                // Check if it can be closed (e.g. not Paga/Finalizada/Vencida) - though UI handles this too.
+                // We allow closing 'Aberta' to 'Fechada'.
+                if (f.statusGeral !== 'Aberta') return f;
+
+                const updatedFatura = { ...f, statusGeral: 'Fechada' as FaturaStatusGeral };
+                const newHistory: HistoricoItem = { id: faker.string.uuid(), acao: 'fechada', data: new Date(), detalhes: 'Fechamento manual' };
+                updatedFatura.historico = [...(updatedFatura.historico || []), newHistory].sort((a, b) => a.data.getTime() - b.data.getTime());
+                return updatedFatura;
+            }
+            return f;
+        }));
+        toast.success("Fatura fechada com sucesso!");
+    };
+
     return (
         <FaturasContext.Provider value={{
             faturas,
@@ -482,7 +499,8 @@ export const FaturasProvider: React.FC<{ children: ReactNode }> = ({ children })
             deleteFatura,
             registrarPagamentoTaxa,
             registrarPagamentoRepasse,
-            createManualFatura
+            createManualFatura,
+            closeFatura
         }}>
             {children}
         </FaturasContext.Provider>

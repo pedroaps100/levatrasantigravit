@@ -53,10 +53,11 @@ interface FaturaDetailsModalProps {
   onAddEntrega: (faturaId: string, data: EntregaManualFormData) => void;
   onUpdateEntrega: (faturaId: string, entregaId: string, data: Partial<EntregaManualFormData>) => void;
   onDeleteEntrega: (faturaId: string, entregaId: string) => void;
+  onCloseFatura: (faturaId: string) => void;
   viewOnly?: boolean;
 }
 
-export const FaturaDetailsModal: React.FC<FaturaDetailsModalProps> = ({ isOpen, onClose, fatura, onRegisterTaxPayment, onRegisterRepassePayment, onAddEntrega, onUpdateEntrega, onDeleteEntrega, viewOnly = false }) => {
+export const FaturaDetailsModal: React.FC<FaturaDetailsModalProps> = ({ isOpen, onClose, fatura, onRegisterTaxPayment, onRegisterRepassePayment, onAddEntrega, onUpdateEntrega, onDeleteEntrega, onCloseFatura, viewOnly = false }) => {
   const [isTaxPaymentModalOpen, setIsTaxPaymentModalOpen] = useState(false);
   const [isRepassePaymentModalOpen, setIsRepassePaymentModalOpen] = useState(false);
   const [isEntregaModalOpen, setIsEntregaModalOpen] = useState(false);
@@ -321,7 +322,12 @@ export const FaturaDetailsModal: React.FC<FaturaDetailsModalProps> = ({ isOpen, 
               {!viewOnly && (
                 <>
                   <Button variant="outline" onClick={() => toast.info("Funcionalidade de envio por e-mail será implementada.")}><Mail className="mr-2 h-4 w-4" />Enviar por E-mail</Button>
-                  <Button onClick={() => toast.info("Funcionalidade de fechar fatura será implementada.")}>Fechar Fatura</Button>
+                  <Button
+                    onClick={() => onCloseFatura(faturaMemo.id)}
+                    disabled={faturaMemo.statusGeral !== 'Aberta'}
+                  >
+                    Fechar Fatura
+                  </Button>
                 </>
               )}
             </div>
