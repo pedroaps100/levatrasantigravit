@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Fatura, EntregaIncluida, Solicitacao, TaxaExtra, ConciliacaoData, FormaPagamentoConciliacao, Cliente, FaturaStatusPagamento, FaturaStatusRepasse, HistoricoItem } from '@/types';
 import { faker } from '@faker-js/faker';
-import { addDays, format, setDate, isBefore, nextDay, addMonths, startOfDay, subDays } from 'date-fns';
+import { addDays, format, setDate, isBefore, nextDay, addMonths, startOfDay, subDays, isSameMonth, isSameDay, isSameISOWeek } from 'date-fns';
 import { toast } from 'sonner';
 
 // --- Helper Functions ---
@@ -224,8 +224,44 @@ export const FaturasProvider: React.FC<{ children: ReactNode }> = ({ children })
 
         setFaturas(prevFaturas => {
             const faturasClone = prevFaturas.map(f => ({ ...f, entregas: [...f.entregas], historico: [...f.historico] }));
+            const frequencia = cliente?.frequenciaFaturamento || 'mensal';
+            const dataSolicitacao = new Date(solicitacao.dataSolicitacao);
 
-            let faturaAbertaIndex = faturasClone.findIndex(f => f.clienteId === solicitacao.clienteId && (f.statusGeral === 'Aberta' || f.statusGeral === 'Vencida'));
+            // Encontrar fatura compatível
+            let faturaIndex = -1;
+
+            // Filtra faturas abertas do cliente
+            const faturasAbertasIndices = faturasClone
+                .map((f, index) => ({ f, index }))
+                .filter(({ f }) => f.clienteId === solicitacao.clienteId && (f.statusGeral === 'Aberta' || f.statusGeral === 'Vencida'));
+
+            for (const { f, index } of faturasAbertasIndices) {
+                let isCompatible = false;
+
+                switch (frequencia) {
+                    case 'mensal':
+                        isCompatible = isSameMonth(f.dataEmissao, dataSolicitacao);
+                        // Nota: Idealmente compararia com o "ciclo", mas dataEmissao serve como proxy se criado no ciclo correto
+                        break;
+                    case 'semanal':
+                        isCompatible = isSameISOWeek(f.dataEmissao, dataSolicitacao);
+                        break;
+                    case 'diario':
+                        isCompatible = isSameDay(f.dataEmissao, dataSolicitacao);
+                        break;
+                    case 'por_entrega':
+                        const limite = cliente?.numeroDeEntregasParaFaturamento || 1;
+                        isCompatible = f.entregas.length < limite;
+                        break;
+                    default:
+                        isCompatible = true;
+                }
+
+                if (isCompatible) {
+                    faturaIndex = index;
+                    break;
+                }
+            }
 
             const novasEntregas: EntregaIncluida[] = solicitacao.rotas.map(rota => {
                 const taxasExtrasDaRota = (rota.taxasExtrasIds || [])
@@ -269,25 +305,49 @@ export const FaturasProvider: React.FC<{ children: ReactNode }> = ({ children })
                 };
             });
 
-            if (faturaAbertaIndex >= 0) {
-                const fatura = faturasClone[faturaAbertaIndex];
+            if (faturaIndex >= 0) {
+                // Adicionar à fatura existente
+                const fatura = faturasClone[faturaIndex];
                 const uniqueNovasEntregas = novasEntregas.filter(ne => !fatura.entregas.some(e => e.id === ne.id));
 
                 if (uniqueNovasEntregas.length > 0) {
                     fatura.entregas.push(...uniqueNovasEntregas);
-                    faturasClone[faturaAbertaIndex] = recalculateFaturaTotals(fatura);
+                    faturasClone[faturaIndex] = recalculateFaturaTotals(fatura);
+
+                    // Check auto-close for 'por_entrega'
+                    if (frequencia === 'por_entrega') {
+                        const limite = cliente?.numeroDeEntregasParaFaturamento || 1;
+                        if (fatura.entregas.length >= limite && fatura.statusGeral !== 'Paga' && fatura.statusGeral !== 'Finalizada') {
+                            fatura.statusGeral = 'Fechada';
+                            fatura.historico.push({
+                                id: faker.string.uuid(),
+                                acao: 'fechada',
+                                data: new Date(),
+                                detalhes: `Fechamento automático (Limite de ${limite} entregas atingido)`
+                            });
+                        }
+                    }
+
                     toast.success(`Entregas adicionadas à fatura ${fatura.numero}`);
                 }
             } else {
+                // Criar nova fatura
                 const dataVencimento = calculateDueDate(cliente);
-                const novaFatura: Fatura = {
+                // Ajustar data de emissão para bater com a solicitação se for diário/semanal/mensal (retroativo se necessário)
+                // Para simplificar, usamos a data da solicitação ou hoje, o que for mais recente, ou apenas hoje. 
+                // Vamos usar dataSolicitacao para garantir que "caia" no balde certo visualmente
+                // Mas cuidado com datas futuras. Vamos usar new Date() se a solicitação for antiga demais para evitar confusão, 
+                // ou dataSolicitacao se quisermos ser precisos com o 'balde' temporal.
+                // Como é CREATE, usamos a data de HOJE para emissão, pois a fatura está sendo gerada HOJE.
+
+                let novaFatura: Fatura = {
                     id: faker.string.uuid(),
                     numero: `FAT-${new Date().getFullYear()}-${String(faturasClone.length + 1).padStart(4, '0')}`,
                     clienteId: solicitacao.clienteId,
                     clienteNome: solicitacao.clienteNome,
-                    tipoFaturamento: cliente?.frequenciaFaturamento === 'mensal' ? 'Mensal' : (cliente?.frequenciaFaturamento === 'semanal' ? 'Semanal' : 'Manual'),
+                    tipoFaturamento: frequencia === 'mensal' ? 'Mensal' : (frequencia === 'semanal' ? 'Semanal' : (frequencia === 'diario' ? 'Diário' : 'Manual')),
                     totalEntregas: 0,
-                    dataEmissao: new Date(),
+                    dataEmissao: new Date(), // Data de 'criação' do documento
                     dataVencimento: dataVencimento,
                     valorTaxas: 0,
                     statusTaxas: 'Pendente',
@@ -298,8 +358,24 @@ export const FaturasProvider: React.FC<{ children: ReactNode }> = ({ children })
                     historico: [{ id: faker.string.uuid(), acao: 'criada', data: new Date() }],
                     observacoes: `Fatura gerada automaticamente em ${format(new Date(), 'dd/MM/yyyy')}`
                 };
-                const faturaCalculada = recalculateFaturaTotals(novaFatura);
-                faturasClone.push(faturaCalculada);
+
+                novaFatura = recalculateFaturaTotals(novaFatura);
+
+                // Check auto-close immediately for 'por_entrega'
+                if (frequencia === 'por_entrega') {
+                    const limite = cliente?.numeroDeEntregasParaFaturamento || 1;
+                    if (novaFatura.entregas.length >= limite && novaFatura.statusGeral !== 'Paga' && novaFatura.statusGeral !== 'Finalizada') {
+                        novaFatura.statusGeral = 'Fechada';
+                        novaFatura.historico.push({
+                            id: faker.string.uuid(),
+                            acao: 'fechada',
+                            data: new Date(),
+                            detalhes: `Fechamento automático imediato (Limite de ${limite} entregas atingido)`
+                        });
+                    }
+                }
+
+                faturasClone.push(novaFatura);
                 toast.success(`Nova fatura ${novaFatura.numero} gerada para ${solicitacao.clienteNome}`);
             }
             return faturasClone;
