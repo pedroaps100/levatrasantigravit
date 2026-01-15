@@ -174,7 +174,7 @@ export const CreateFaturaDialog: React.FC<CreateFaturaDialogProps> = ({ open, on
                                 <CheckCircle2 className="h-5 w-5" />
                                 Simulação Realizada
                             </div>
-                            <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div className="grid grid-cols-3 gap-4 text-sm">
                                 <div>
                                     <span className="text-muted-foreground">Entregas encontradas:</span>
                                     <div className="font-semibold text-lg">{simulationResult.count}</div>
@@ -182,6 +182,10 @@ export const CreateFaturaDialog: React.FC<CreateFaturaDialogProps> = ({ open, on
                                 <div>
                                     <span className="text-muted-foreground">Valor Taxas:</span>
                                     <div className="font-semibold text-lg">{formatCurrency(simulationResult.totalTaxas)}</div>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground">Valor Repasse:</span>
+                                    <div className="font-semibold text-lg">{formatCurrency(simulationResult.totalRepasses)}</div>
                                 </div>
                             </div>
                         </div>
