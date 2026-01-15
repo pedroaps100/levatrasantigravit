@@ -55,7 +55,7 @@ export const ClientProfileModal: React.FC<ClientProfileModalProps> = ({ open, on
         {isFaturado ? (
           <>
             <TabsContent value="invoices"><InvoicesTab clientId={client.id} /></TabsContent>
-            <TabsContent value="payments"><PaymentsHistoryTab /></TabsContent>
+            <TabsContent value="payments"><PaymentsHistoryTab clientId={client.id} /></TabsContent>
           </>
         ) : (
           <>
