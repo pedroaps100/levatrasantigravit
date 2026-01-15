@@ -12,6 +12,8 @@ import { SolicitacaoFormDialog } from './SolicitacaoFormDialog';
 import { toast } from 'sonner';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ViewSolicitacaoDialog } from '@/pages/solicitacoes/ViewSolicitacaoDialog';
+import { useFaturas } from '@/contexts/FaturasContext';
+import { useTransaction } from '@/contexts/TransactionContext';
 
 const statusConfig: Record<SolicitacaoStatus, { label: string; badgeClass: string; icon: React.ElementType }> = {
     pendente: { label: 'Pendente', badgeClass: 'bg-yellow-100 text-yellow-800 border-yellow-200', icon: Clock },
@@ -25,13 +27,49 @@ const statusConfig: Record<SolicitacaoStatus, { label: string; badgeClass: strin
 export const ClientDashboardPage: React.FC = () => {
     const { clientData } = useAuth();
     const { solicitacoes, addSolicitacao } = useSolicitacoesData();
+    const { faturas } = useFaturas(); // Get faturas from context
+    const { transactions } = useTransaction(); // Get transactions from context
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [solicitacaoToView, setSolicitacaoToView] = useState<Solicitacao | null>(null);
 
     const clientSolicitacoes = useMemo(() => {
         return solicitacoes.filter(s => s.clienteId === clientData?.id).slice(0, 5);
     }, [solicitacoes, clientData]);
-    
+
+    // Calculate current balance for pre-paid clients
+    const currentBalance = useMemo(() => {
+        if (!clientData || clientData.modalidade !== 'pré-pago') return 0;
+
+        const clientTransactions = transactions.filter(t => t.clientId === clientData.id);
+
+        return clientTransactions.reduce((acc, curr) => {
+            if (curr.type === 'credit') {
+                return acc + curr.value;
+            } else {
+                return acc - curr.value;
+            }
+        }, 0);
+    }, [transactions, clientData]);
+
+    // Calculate open invoices data
+    const { openFaturasTotal, nearestDueDate } = useMemo(() => {
+        if (!clientData || clientData.modalidade !== 'faturado') return { openFaturasTotal: 0, nearestDueDate: null };
+
+        const clientFaturas = faturas.filter(f => f.clienteId === clientData.id);
+        const openFaturas = clientFaturas.filter(f => ['Aberta', 'Vencida'].includes(f.statusGeral));
+
+        const total = openFaturas.reduce((acc, curr) => acc + curr.valorTaxas + curr.valorRepasse, 0);
+
+        // Find nearest due date
+        let nearest: Date | null = null;
+        if (openFaturas.length > 0) {
+            const sortedByDueDate = [...openFaturas].sort((a, b) => new Date(a.dataVencimento).getTime() - new Date(b.dataVencimento).getTime());
+            nearest = new Date(sortedByDueDate[0].dataVencimento);
+        }
+
+        return { openFaturasTotal: total, nearestDueDate: nearest };
+    }, [faturas, clientData]);
+
     const handleFormSubmit = (data: Omit<Solicitacao, 'id' | 'codigo' | 'dataSolicitacao' | 'status'>) => {
         addSolicitacao(data, false); // false indicates it's not by an admin
         toast.success("Solicitação enviada com sucesso! Aguarde a confirmação.");
@@ -64,7 +102,7 @@ export const ClientDashboardPage: React.FC = () => {
                                 <Wallet className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold text-green-600">{formatCurrency(532.50)}</div>
+                                <div className="text-2xl font-bold text-green-600">{formatCurrency(currentBalance)}</div>
                                 <p className="text-xs text-muted-foreground">Saldo disponível para novas corridas</p>
                             </CardContent>
                         </Card>
@@ -75,8 +113,10 @@ export const ClientDashboardPage: React.FC = () => {
                                 <FileText className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold text-red-600">{formatCurrency(875.90)}</div>
-                                <p className="text-xs text-muted-foreground">Vencimento em 10/08/2025</p>
+                                <div className="text-2xl font-bold text-red-600">{formatCurrency(openFaturasTotal)}</div>
+                                <p className="text-xs text-muted-foreground">
+                                    {nearestDueDate ? `Vencimento em ${format(nearestDueDate, 'dd/MM/yyyy')}` : 'Nenhuma fatura pendente'}
+                                </p>
                             </CardContent>
                         </Card>
                     )}
@@ -124,7 +164,7 @@ export const ClientDashboardPage: React.FC = () => {
                                             <TableCell className="text-right">{formatCurrency(s.valorTotalTaxasExtras || 0)}</TableCell>
                                             <TableCell className="text-right font-bold">{formatCurrency((s.valorTotalTaxas || 0) + (s.valorTotalTaxasExtras || 0))}</TableCell>
                                             <TableCell className="text-right">
-                                                <Button variant="ghost" size="icon" onClick={() => setSolicitacaoToView(s)}><Eye className="h-4 w-4"/></Button>
+                                                <Button variant="ghost" size="icon" onClick={() => setSolicitacaoToView(s)}><Eye className="h-4 w-4" /></Button>
                                             </TableCell>
                                         </TableRow>
                                     ))}
@@ -134,8 +174,8 @@ export const ClientDashboardPage: React.FC = () => {
                                 </TableBody>
                             </Table>
                         </div>
-                         {/* Mobile View */}
-                         <div className="grid gap-4 md:hidden">
+                        {/* Mobile View */}
+                        <div className="grid gap-4 md:hidden">
                             {clientSolicitacoes.map(s => (
                                 <Card key={s.id}>
                                     <CardHeader>
@@ -175,13 +215,13 @@ export const ClientDashboardPage: React.FC = () => {
                         </div>
                     </CardContent>
                 </Card>
-                <SolicitacaoFormDialog 
+                <SolicitacaoFormDialog
                     isOpen={isModalOpen}
                     onClose={() => setIsModalOpen(false)}
                     onFormSubmit={handleFormSubmit}
                 />
             </div>
-            <ViewSolicitacaoDialog 
+            <ViewSolicitacaoDialog
                 isOpen={!!solicitacaoToView}
                 onClose={() => setSolicitacaoToView(null)}
                 solicitacao={solicitacaoToView}

@@ -64,7 +64,7 @@ export const ClientProfileModal: React.FC<ClientProfileModalProps> = ({ open, on
             <TabsContent value="recharges"><RechargesHistoryTab /></TabsContent>
           </>
         )}
-        <TabsContent value="cancellations"><CancellationsTab /></TabsContent>
+        <TabsContent value="cancellations"><CancellationsTab clientId={client.id} /></TabsContent>
         <TabsContent value="addresses"><AddressesTab client={client} /></TabsContent>
       </div>
     </Tabs>

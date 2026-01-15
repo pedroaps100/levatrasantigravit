@@ -3,16 +3,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { format } from 'date-fns';
 import { useTransaction } from '@/contexts/TransactionContext';
 
-export const CancellationsTab: React.FC = () => {
-    const { transactions, loading } = useTransaction();
+export const CancellationsTab: React.FC<{ clientId?: string }> = ({ clientId }) => {
+  const { transactions, loading } = useTransaction();
 
-    const cancellations = useMemo(() => {
-        return transactions.filter(tx => tx.origin === 'cancellation_fee');
-    }, [transactions]);
+  const cancellations = useMemo(() => {
+    return transactions.filter(tx =>
+      tx.origin === 'cancellation_fee' &&
+      (!clientId || tx.clientId === clientId)
+    );
+  }, [transactions, clientId]);
 
-    if (loading) {
-        return <div>Carregando cancelamentos...</div>;
-    }
+  if (loading) {
+    return <div>Carregando cancelamentos...</div>;
+  }
 
   return (
     <div className="border rounded-lg">
