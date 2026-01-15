@@ -6,11 +6,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon, Loader2, CheckCircle2 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, endOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 import { useClientsData } from '@/hooks/useClientsData';
 import { useSolicitacoesData } from '@/hooks/useSolicitacoesData';
+import { useFaturasData } from '@/hooks/useFaturasData';
 import { toast } from 'sonner';
 
 interface CreateFaturaDialogProps {
@@ -22,6 +23,7 @@ interface CreateFaturaDialogProps {
 export const CreateFaturaDialog: React.FC<CreateFaturaDialogProps> = ({ open, onOpenChange, onCreateFatura }) => {
     const { clients } = useClientsData();
     const { solicitacoes } = useSolicitacoesData();
+    const { faturas } = useFaturasData();
 
     // Form States
     const [selectedClientId, setSelectedClientId] = useState<string>('');
@@ -48,12 +50,20 @@ export const CreateFaturaDialog: React.FC<CreateFaturaDialogProps> = ({ open, on
 
         setIsSimulating(true);
         setTimeout(() => { // Mock processing time
+            const endDate = endOfDay(dateRange.to!);
+
+            // Get IDs of deliveries already billed
+            const billedEntregaIds = new Set<string>();
+            faturas.forEach(f => {
+                f.entregas.forEach(e => billedEntregaIds.add(e.id));
+            });
+
             const filteredSolicitacoes = solicitacoes.filter(s =>
                 s.clienteId === selectedClientId &&
                 s.status === 'concluida' &&
                 new Date(s.dataSolicitacao) >= dateRange.from! &&
-                new Date(s.dataSolicitacao) <= dateRange.to!
-                // In real app, check if not already billed
+                new Date(s.dataSolicitacao) <= endDate &&
+                !billedEntregaIds.has(s.id)
             );
 
             // Calculate totals
