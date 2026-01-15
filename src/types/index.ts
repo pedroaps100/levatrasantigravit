@@ -84,12 +84,12 @@ export interface Despesa {
 }
 
 export interface Receita {
-    id: string;
-    descricao: string;
-    categoria: string;
-    cliente: string;
-    dataRecebimento: Date;
-    valor: number;
+  id: string;
+  descricao: string;
+  categoria: string;
+  cliente: string;
+  dataRecebimento: Date;
+  valor: number;
 }
 
 export type FaturaStatusPagamento = 'Pendente' | 'Paga' | 'Vencida';
@@ -105,7 +105,7 @@ export interface EntregaIncluida {
   taxaEntrega: number; // Valor original da taxa
   taxasExtras: { nome: string; valor: number }[];
   valorRepasse: number; // Valor original do repasse
-  
+
   // Novos campos para controle financeiro preciso
   taxaFaturada?: number; // Valor que realmente entrou como débito na fatura
   repasseFaturado?: number; // Valor que realmente entrou como crédito na fatura
@@ -114,10 +114,10 @@ export interface EntregaIncluida {
 export type HistoricoAcao = 'criada' | 'fechada' | 'pagamento_taxa' | 'pagamento_repasse' | 'finalizada';
 
 export interface HistoricoItem {
-    id: string;
-    acao: HistoricoAcao;
-    data: Date;
-    detalhes?: string;
+  id: string;
+  acao: HistoricoAcao;
+  data: Date;
+  detalhes?: string;
 }
 
 export interface Fatura {
@@ -175,7 +175,7 @@ export interface RotaConciliacao {
 }
 
 export interface ConciliacaoData {
-    [rotaId: string]: RotaConciliacao;
+  [rotaId: string]: RotaConciliacao;
 }
 
 export type SolicitacaoAcao = 'criada' | 'editada' | 'aceita' | 'rejeitada' | 'iniciada' | 'conciliada' | 'cancelada';
@@ -240,16 +240,16 @@ export interface PaymentMethod {
 export type AcaoFaturamento = 'GERAR_DEBITO_TAXA' | 'GERAR_CREDITO_REPASSE' | 'NENHUMA';
 
 export interface FormaPagamentoConciliacao {
-    id: string;
-    nome: string;
-    acaoFaturamento: AcaoFaturamento;
+  id: string;
+  nome: string;
+  acaoFaturamento: AcaoFaturamento;
 }
 
 export interface Cargo {
-    id: string;
-    name: string;
-    description: string;
-    permissions: string[];
+  id: string;
+  name: string;
+  description: string;
+  permissions: string[];
 }
 
 export interface Transaction {
@@ -260,6 +260,7 @@ export interface Transaction {
   description: string;
   value: number;
   relatedId?: string;
+  clientId?: string;
   clientName?: string;
   clientAvatar?: string;
 }

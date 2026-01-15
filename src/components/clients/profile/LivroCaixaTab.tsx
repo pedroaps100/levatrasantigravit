@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useTransaction } from '@/contexts/TransactionContext';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -19,18 +19,19 @@ const originMap: Record<Transaction['origin'], string> = {
     cancellation_fee: 'Taxa de Cancelamento',
 };
 
-export const LivroCaixaTab: React.FC = () => {
+export const LivroCaixaTab: React.FC<{ clientId?: string }> = ({ clientId }) => {
     const { transactions, loading } = useTransaction();
     const [typeFilter, setTypeFilter] = useState('todos');
     const [dateRange, setDateRange] = useState<DateRange | undefined>();
 
     const filteredTransactions = useMemo(() => {
         return transactions.filter(tx => {
+            const matchesClient = !clientId || tx.clientId === clientId;
             const matchesType = typeFilter === 'todos' || tx.type === typeFilter;
             const matchesDate = !dateRange || (dateRange.from && dateRange.to && tx.date >= dateRange.from && tx.date <= dateRange.to);
-            return matchesType && matchesDate;
+            return matchesClient && matchesType && matchesDate;
         });
-    }, [transactions, typeFilter, dateRange]);
+    }, [transactions, typeFilter, dateRange, clientId]);
 
     const formatCurrency = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 

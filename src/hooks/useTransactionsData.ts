@@ -7,7 +7,7 @@ function loadFromStorage<T>(key: string, defaultValue: T): T {
     try {
         const item = window.localStorage.getItem(key);
         if (!item) return defaultValue;
-        
+
         // Handle date deserialization
         const parsed = JSON.parse(item);
         if (Array.isArray(parsed)) {
@@ -75,22 +75,22 @@ const generateMockTransactions = (): Transaction[] => {
 
 
 export const useTransactionsData = () => {
-  const [transactions, setTransactions] = useState<Transaction[]>(() => loadFromStorage('app_transactions', generateMockTransactions()));
-  const [loading, setLoading] = useState(false);
+    const [transactions, setTransactions] = useState<Transaction[]>(() => loadFromStorage('app_transactions', generateMockTransactions()));
+    const [loading] = useState(false);
 
-  useEffect(() => {
-    saveToStorage('app_transactions', transactions);
-  }, [transactions]);
+    useEffect(() => {
+        saveToStorage('app_transactions', transactions);
+    }, [transactions]);
 
 
-  const addTransaction = (transactionData: Omit<Transaction, 'id' | 'date'>) => {
-    const newTransaction: Transaction = {
-        ...transactionData,
-        id: faker.string.uuid(),
-        date: new Date(),
+    const addTransaction = (transactionData: Omit<Transaction, 'id' | 'date'>) => {
+        const newTransaction: Transaction = {
+            ...transactionData,
+            id: faker.string.uuid(),
+            date: new Date(),
+        };
+        setTransactions(prev => [newTransaction, ...prev]);
     };
-    setTransactions(prev => [newTransaction, ...prev]);
-  };
 
-  return { transactions, loading, addTransaction };
+    return { transactions, loading, addTransaction };
 };
