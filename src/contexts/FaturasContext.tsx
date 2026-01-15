@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Fatura, EntregaIncluida, Solicitacao, TaxaExtra, ConciliacaoData, FormaPagamentoConciliacao, Cliente, FaturaStatusPagamento, FaturaStatusRepasse, FaturaStatusGeral, HistoricoItem } from '@/types';
+import { Fatura, EntregaIncluida, Solicitacao, TaxaExtra, ConciliacaoData, FormaPagamentoConciliacao, Cliente, FaturaStatusPagamento, FaturaStatusRepasse, HistoricoItem } from '@/types';
 import { faker } from '@faker-js/faker';
-import { addDays, format, setDate, isBefore, nextDay, addMonths, startOfDay, addHours, subDays } from 'date-fns';
+import { addDays, format, setDate, isBefore, nextDay, addMonths, startOfDay, subDays } from 'date-fns';
 import { toast } from 'sonner';
 
 // --- Helper Functions ---
@@ -9,7 +9,7 @@ function loadFromStorage<T>(key: string, defaultValue: T): T {
     try {
         const item = window.localStorage.getItem(key);
         if (!item) return defaultValue;
-        
+
         const parsed = JSON.parse(item);
         if (Array.isArray(parsed)) {
             return parsed.map(f => ({
@@ -17,7 +17,7 @@ function loadFromStorage<T>(key: string, defaultValue: T): T {
                 dataEmissao: new Date(f.dataEmissao),
                 dataVencimento: new Date(f.dataVencimento),
                 entregas: Array.isArray(f.entregas) ? f.entregas.map((e: any) => ({ ...e, data: new Date(e.data) })) : [],
-                historico: Array.isArray(f.historico) ? f.historico.map((h: any) => ({...h, data: new Date(h.data)})) : []
+                historico: Array.isArray(f.historico) ? f.historico.map((h: any) => ({ ...h, data: new Date(h.data) })) : []
             })) as T;
         }
         return parsed;
@@ -50,13 +50,13 @@ const recalculateFaturaTotals = (fatura: Fatura): Fatura => {
         }
         return sum + e.valorRepasse;
     }, 0);
-    
+
     return { ...fatura, valorTaxas, valorRepasse, totalEntregas: fatura.entregas.length };
 };
 
 const calculateDueDate = (cliente?: Cliente): Date => {
     const today = startOfDay(new Date());
-    
+
     if (!cliente || !cliente.ativarFaturamentoAutomatico) {
         return addDays(today, 15);
     }
@@ -89,7 +89,7 @@ const generateMockFaturas = (count: number): Fatura[] => {
         return {
             id: faker.string.uuid(),
             numero: `FAT-2025-000${i + 1}`,
-            clienteId: `client-${i+1}`,
+            clienteId: `client-${i + 1}`,
             clienteNome: faker.company.name(),
             tipoFaturamento: 'Mensal',
             totalEntregas: 0,
@@ -112,9 +112,9 @@ interface FaturasContextType {
     faturas: Fatura[];
     loading: boolean;
     addEntregaToFatura: (
-        solicitacao: Solicitacao, 
-        taxasExtras: TaxaExtra[], 
-        conciliacao?: ConciliacaoData, 
+        solicitacao: Solicitacao,
+        taxasExtras: TaxaExtra[],
+        conciliacao?: ConciliacaoData,
         regrasPagamento?: FormaPagamentoConciliacao[],
         cliente?: Cliente
     ) => void;
@@ -124,6 +124,7 @@ interface FaturasContextType {
     deleteFatura: (id: string) => void;
     registrarPagamentoTaxa: (faturaId: string, detalhes: string) => void;
     registrarPagamentoRepasse: (faturaId: string, detalhes: string) => void;
+    createManualFatura: (data: any) => void; // Adding strict type later
 }
 
 const FaturasContext = createContext<FaturasContextType | undefined>(undefined);
@@ -138,16 +139,69 @@ export const useFaturas = () => {
 
 export const FaturasProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [faturas, setFaturas] = useState<Fatura[]>(() => loadFromStorage('app_faturas', generateMockFaturas(0)));
-    const [loading, setLoading] = useState(false);
+    const [loading] = useState(false);
 
     useEffect(() => {
         saveToStorage('app_faturas', faturas);
     }, [faturas]);
 
+    const createManualFatura = (data: {
+        clienteId: string;
+        clienteNome: string;
+        periodoInicio: Date | undefined;
+        periodoFim: Date | undefined;
+        vencimento: Date;
+        entregas: any[]; // Using any here to simplify, but should match structure
+        totais: { taxas: number; repasse: number };
+    }) => {
+        const { clienteId, clienteNome, vencimento, entregas } = data;
+
+        // Transform incoming delivery data to EntregaIncluida format
+        const formattedEntregas: EntregaIncluida[] = entregas.map((s: any) => {
+            // Logic to extract delivery info from 'Solicitacao' to 'EntregaIncluida'
+            // This assumes simple transformation, for complex logic (e.g. multiple routes per solicitacao)
+            // we'd need to iterate over rotas. For now, we take the whole values.
+            return {
+                id: s.id, // Or generate new ID if we want to separate concept
+                data: new Date(s.dataSolicitacao),
+                descricao: `Solicitação #${s.codigo} - ${s.operationDescription}`,
+                entregadorId: s.entregadorId,
+                entregadorNome: s.entregadorNome,
+                taxaEntrega: s.valorTotalTaxas,
+                taxasExtras: [], // Simplified, would need to extract per route
+                valorRepasse: s.valorTotalRepasse,
+                taxaFaturada: s.valorTotalTaxas,
+                repasseFaturado: s.valorTotalRepasse
+            };
+        });
+
+        const novaFatura: Fatura = {
+            id: faker.string.uuid(),
+            numero: `FAT-${new Date().getFullYear()}-${String(faturas.length + 1).padStart(4, '0')}`,
+            clienteId,
+            clienteNome,
+            tipoFaturamento: 'Manual',
+            totalEntregas: formattedEntregas.length,
+            dataEmissao: new Date(),
+            dataVencimento: vencimento,
+            valorTaxas: data.totais.taxas,
+            statusTaxas: 'Pendente',
+            valorRepasse: data.totais.repasse,
+            statusRepasse: 'Pendente',
+            statusGeral: 'Aberta',
+            entregas: formattedEntregas,
+            observacoes: `Fatura manual gerada em ${format(new Date(), 'dd/MM/yyyy')}. Período: ${data.periodoInicio ? format(data.periodoInicio, 'dd/MM') : '?'} a ${data.periodoFim ? format(data.periodoFim, 'dd/MM') : '?'}`,
+            historico: [{ id: faker.string.uuid(), acao: 'criada', data: new Date(), detalhes: 'Fatura criada manualmente' }]
+        };
+
+        setFaturas(prev => [...prev, novaFatura]);
+        toast.success(`Fatura manual ${novaFatura.numero} criada com sucesso!`);
+    };
+
     const addEntregaToFatura = (
-        solicitacao: Solicitacao, 
-        taxasExtras: TaxaExtra[] = [], 
-        conciliacao?: ConciliacaoData, 
+        solicitacao: Solicitacao,
+        taxasExtras: TaxaExtra[] = [],
+        conciliacao?: ConciliacaoData,
         regrasPagamento: FormaPagamentoConciliacao[] = [],
         cliente?: Cliente
     ) => {
@@ -158,7 +212,7 @@ export const FaturasProvider: React.FC<{ children: ReactNode }> = ({ children })
 
         setFaturas(prevFaturas => {
             const faturasClone = prevFaturas.map(f => ({ ...f, entregas: [...f.entregas], historico: [...f.historico] }));
-            
+
             let faturaAbertaIndex = faturasClone.findIndex(f => f.clienteId === solicitacao.clienteId && (f.statusGeral === 'Aberta' || f.statusGeral === 'Vencida'));
 
             const novasEntregas: EntregaIncluida[] = solicitacao.rotas.map(rota => {
@@ -175,7 +229,7 @@ export const FaturasProvider: React.FC<{ children: ReactNode }> = ({ children })
 
                 if (conciliacao && regrasPagamento.length > 0 && conciliacao[rota.id]) {
                     const rotaConciliacao = conciliacao[rota.id];
-                    
+
                     taxaFaturada = rotaConciliacao.pagamentosTaxa.reduce((acc, pag) => {
                         const regra = regrasPagamento.find(r => r.id === pag.formaPagamentoId);
                         if (regra?.acaoFaturamento === 'GERAR_DEBITO_TAXA') return acc + pag.valor;
@@ -206,7 +260,7 @@ export const FaturasProvider: React.FC<{ children: ReactNode }> = ({ children })
             if (faturaAbertaIndex >= 0) {
                 const fatura = faturasClone[faturaAbertaIndex];
                 const uniqueNovasEntregas = novasEntregas.filter(ne => !fatura.entregas.some(e => e.id === ne.id));
-                
+
                 if (uniqueNovasEntregas.length > 0) {
                     fatura.entregas.push(...uniqueNovasEntregas);
                     faturasClone[faturaAbertaIndex] = recalculateFaturaTotals(fatura);
@@ -243,8 +297,8 @@ export const FaturasProvider: React.FC<{ children: ReactNode }> = ({ children })
     const addManualEntregaToFatura = (faturaId: string, entregaData: Omit<EntregaIncluida, 'id'>) => {
         setFaturas(prev => prev.map(f => {
             if (f.id === faturaId) {
-                const newEntrega: EntregaIncluida = { 
-                    ...entregaData, 
+                const newEntrega: EntregaIncluida = {
+                    ...entregaData,
                     id: faker.string.uuid(),
                     taxaFaturada: entregaData.taxaEntrega + (entregaData.taxasExtras?.reduce((s, t) => s + t.valor, 0) || 0),
                     repasseFaturado: entregaData.valorRepasse
@@ -298,7 +352,7 @@ export const FaturasProvider: React.FC<{ children: ReactNode }> = ({ children })
             if (f.id === faturaId) {
                 const updatedFatura = { ...f, statusTaxas: 'Paga' as FaturaStatusPagamento };
                 const newHistory: HistoricoItem = { id: faker.string.uuid(), acao: 'pagamento_taxa', data: new Date(), detalhes };
-                updatedFatura.historico = [...(updatedFatura.historico || []), newHistory].sort((a,b) => a.data.getTime() - b.data.getTime());
+                updatedFatura.historico = [...(updatedFatura.historico || []), newHistory].sort((a, b) => a.data.getTime() - b.data.getTime());
 
                 if (updatedFatura.statusRepasse === 'Repassado' || updatedFatura.valorRepasse === 0) {
                     updatedFatura.statusGeral = 'Finalizada';
@@ -317,7 +371,7 @@ export const FaturasProvider: React.FC<{ children: ReactNode }> = ({ children })
             if (f.id === faturaId) {
                 const updatedFatura = { ...f, statusRepasse: 'Repassado' as FaturaStatusRepasse };
                 const newHistory: HistoricoItem = { id: faker.string.uuid(), acao: 'pagamento_repasse', data: new Date(), detalhes };
-                updatedFatura.historico = [...(updatedFatura.historico || []), newHistory].sort((a,b) => a.data.getTime() - b.data.getTime());
+                updatedFatura.historico = [...(updatedFatura.historico || []), newHistory].sort((a, b) => a.data.getTime() - b.data.getTime());
 
                 if (updatedFatura.statusTaxas === 'Paga') {
                     updatedFatura.statusGeral = 'Finalizada';
@@ -339,7 +393,8 @@ export const FaturasProvider: React.FC<{ children: ReactNode }> = ({ children })
             deleteManualEntregaFromFatura,
             deleteFatura,
             registrarPagamentoTaxa,
-            registrarPagamentoRepasse
+            registrarPagamentoRepasse,
+            createManualFatura
         }}>
             {children}
         </FaturasContext.Provider>

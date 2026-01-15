@@ -6,12 +6,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { toast } from "sonner";
-import { Plus, Search, Trash2, Eye, FileText, Clock, TrendingUp, TrendingDown, MoreHorizontal, Download, Filter, RefreshCw } from 'lucide-react';
+import { Plus, Search, Eye, FileText, Clock, TrendingUp, TrendingDown, MoreHorizontal, Download, Filter, RefreshCw } from 'lucide-react';
 import { Fatura, FaturaStatusGeral, FaturaStatusPagamento, FaturaStatusRepasse } from '@/types';
 import { useFaturasData } from '@/hooks/useFaturasData';
 import { format } from 'date-fns';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { FaturaDetailsModal } from './FaturaDetailsModal';
+import { CreateFaturaDialog } from './CreateFaturaDialog';
 
 const statusGeralConfig: Record<FaturaStatusGeral, { label: string; badgeClass: string; }> = {
     Aberta: { label: 'Aberta', badgeClass: 'bg-blue-100 text-blue-800 border-blue-200' },
@@ -33,9 +34,10 @@ const statusRepasseConfig: Record<FaturaStatusRepasse, { label: string; badgeCla
 };
 
 export const FaturasPage: React.FC = () => {
-    const { faturas, loading, deleteFatura, registrarPagamentoTaxa, registrarPagamentoRepasse, addManualEntregaToFatura, updateManualEntregaInFatura, deleteManualEntregaFromFatura } = useFaturasData();
+    const { faturas, loading, deleteFatura, registrarPagamentoTaxa, registrarPagamentoRepasse, addManualEntregaToFatura, updateManualEntregaInFatura, deleteManualEntregaFromFatura, createManualFatura } = useFaturasData();
     const [searchTerm, setSearchTerm] = useState('');
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+    const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [selectedFatura, setSelectedFatura] = useState<Fatura | null>(null);
 
     useEffect(() => {
@@ -57,7 +59,7 @@ export const FaturasPage: React.FC = () => {
     }, [faturas]);
 
     const filteredFaturas = useMemo(() => {
-        return activeFaturas.filter(f => 
+        return activeFaturas.filter(f =>
             f.clienteNome.toLowerCase().includes(searchTerm.toLowerCase()) ||
             f.numero.toLowerCase().includes(searchTerm.toLowerCase())
         );
@@ -68,7 +70,7 @@ export const FaturasPage: React.FC = () => {
         const vencidasCount = activeFaturas.filter(f => f.statusGeral === 'Vencida').length;
         const taxasPendentes = activeFaturas.filter(f => f.statusTaxas === 'Pendente' || f.statusTaxas === 'Vencida').reduce((sum, f) => sum + f.valorTaxas, 0);
         const repassesPendentes = activeFaturas.filter(f => f.statusRepasse === 'Pendente').reduce((sum, f) => sum + f.valorRepasse, 0);
-        
+
         return {
             total: activeFaturas.length,
             emAberto: faturasEmAberto.length,
@@ -146,7 +148,20 @@ export const FaturasPage: React.FC = () => {
                         <Button variant="outline" className="w-full md:w-auto gap-2" onClick={() => window.location.reload()}><RefreshCw className="h-4 w-4" />Recarregar</Button>
                         <Button variant="outline" className="w-full md:w-auto gap-2"><Filter className="h-4 w-4" />Filtros</Button>
                         <Button variant="outline" className="w-full md:w-auto gap-2"><Download className="h-4 w-4" />Exportar PDF</Button>
-                        <Button className="w-full md:w-auto gap-2"><Plus className="h-4 w-4" />Ações</Button>
+                        <Button variant="outline" className="w-full md:w-auto gap-2"><Download className="h-4 w-4" />Exportar PDF</Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button className="w-full md:w-auto gap-2"><Plus className="h-4 w-4" />Ações</Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setIsCreateOpen(true)}>
+                                    Gerar Fatura Manual
+                                </DropdownMenuItem>
+                                <DropdownMenuItem disabled title="Em breve">
+                                    Faturamento em Massa
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -204,6 +219,11 @@ export const FaturasPage: React.FC = () => {
                 onAddEntrega={addManualEntregaToFatura}
                 onUpdateEntrega={updateManualEntregaInFatura}
                 onDeleteEntrega={deleteManualEntregaFromFatura}
+            />
+            <CreateFaturaDialog
+                open={isCreateOpen}
+                onOpenChange={setIsCreateOpen}
+                onCreateFatura={createManualFatura}
             />
         </div>
     );
