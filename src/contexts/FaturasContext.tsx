@@ -51,7 +51,19 @@ const recalculateFaturaTotals = (fatura: Fatura): Fatura => {
         return sum + e.valorRepasse;
     }, 0);
 
-    return { ...fatura, valorTaxas, valorRepasse, totalEntregas: fatura.entregas.length };
+    const statusTaxas = valorTaxas === 0 ? 'Paga' : fatura.statusTaxas;
+    const statusRepasse = valorRepasse === 0 ? 'Repassado' : fatura.statusRepasse;
+    const statusGeral = (valorTaxas === 0 && valorRepasse === 0) ? 'Paga' : fatura.statusGeral;
+
+    return {
+        ...fatura,
+        valorTaxas,
+        valorRepasse,
+        totalEntregas: fatura.entregas.length,
+        statusTaxas,
+        statusRepasse,
+        statusGeral
+    };
 };
 
 const calculateDueDate = (cliente?: Cliente): Date => {
@@ -168,9 +180,9 @@ export const FaturasProvider: React.FC<{ children: ReactNode }> = ({ children })
                 entregadorId: s.entregadorId,
                 entregadorNome: s.entregadorNome,
                 taxaEntrega: s.valorTotalTaxas,
-                taxasExtras: [], // Simplified, would need to extract per route
+                taxasExtras: s.valorTotalTaxasExtras ? [{ nome: 'Taxas Extras', valor: s.valorTotalTaxasExtras }] : [],
                 valorRepasse: s.valorTotalRepasse,
-                taxaFaturada: s.valorTotalTaxas,
+                taxaFaturada: s.valorTotalTaxas + (s.valorTotalTaxasExtras || 0),
                 repasseFaturado: s.valorTotalRepasse
             };
         });

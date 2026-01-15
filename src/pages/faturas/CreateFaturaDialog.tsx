@@ -57,7 +57,7 @@ export const CreateFaturaDialog: React.FC<CreateFaturaDialogProps> = ({ open, on
             );
 
             // Calculate totals
-            const totalTaxas = filteredSolicitacoes.reduce((acc, s) => acc + s.valorTotalTaxas, 0);
+            const totalTaxas = filteredSolicitacoes.reduce((acc, s) => acc + s.valorTotalTaxas + (s.valorTotalTaxasExtras || 0), 0);
             const totalRepasse = filteredSolicitacoes.reduce((acc, s) => acc + s.valorTotalRepasse, 0);
 
             setSimulationResult({
